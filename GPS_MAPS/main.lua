@@ -66,9 +66,18 @@ local function file_found(file_name)
     io.close(f)
     return true
   end
-
-
  end
+local function circle(xCenter, yCenter, radius,flags)
+    local y, x
+    for y=-radius, radius do
+      for x=-radius, radius do
+        if(x*x+y*y <= radius*radius) then
+        lcd.drawPoint(xCenter+x, yCenter+y,flags)
+        end
+      end
+    end
+ end
+
 local function latlon_tile(DR,wgt,map_ref)
     if type(DR.GPS_COORDS.curr.lat)=="number" then
       local siny=math.sin(math.rad(DR.GPS_COORDS.curr.lat))
@@ -81,7 +90,7 @@ local function latlon_tile(DR,wgt,map_ref)
       local y_tileCoor=y_pixCoor/tile_size
       
       if map_ref then
-        local tile_path="/IMAGES/MAPS/"..tostring(17-zoom).."_"..tostring(math.floor(x_tileCoor/1024,1)).."_"..tostring(math.floor(x_tileCoor-math.floor(x_tileCoor/1024,1)*1024)).."_"..tostring(math.floor(y_tileCoor/1024,1)).."_"..tostring(math.floor(y_tileCoor-math.floor(y_tileCoor/1024,1)*1024))..".png"
+        local tile_path="/IMAGES/MAPS/"..tostring(17-wgt.ZOOM).."_"..tostring(math.floor(x_tileCoor/1024,1)).."_"..tostring(math.floor(x_tileCoor-math.floor(x_tileCoor/1024,1)*1024)).."_"..tostring(math.floor(y_tileCoor/1024,1)).."_"..tostring(math.floor(y_tileCoor-math.floor(y_tileCoor/1024,1)*1024))..".png"
         if not(file_found(tile_path)) then
           tile_path=wgt.TILE.no_tile_path
         end
@@ -164,7 +173,9 @@ local function GPS_MAP_PLOT(wgt,x,y)
 local function GPS_DRONE_PLOT(wgt,x,y)
     --if (wgt.DRONE.PCoor.curr.X~=0) and ( wgt.DRONE.TPCoor.curr~=wgt.DRONE.TPCoor.prev) then
     if (wgt.DRONE.PCoor.curr.X~=0) then
-      lcd.drawBitmap(wgt.DRONE.ICON,wgt.DRONE.TPCoor.curr.X+x,wgt.DRONE.TPCoor.curr.Y+y)
+      --lcd.drawBitmap(wgt.DRONE.ICON,wgt.DRONE.TPCoor.curr.X+x,wgt.DRONE.TPCoor.curr.Y+y)
+      lcd.setColor( CUSTOM_COLOR, lcd.RGB(255, 0, 0 ))
+      circle(wgt.DRONE.TPCoor.curr.X+x, wgt.DRONE.TPCoor.curr.Y+y, 4,CUSTOM_COLOR)
     end
  end
 
@@ -224,7 +235,7 @@ local function create(zone, options)
               },
               HDG=0,
               ALT=0,
-              ICON=Bitmap.open("/IMAGE/MAPS/DRN.png")
+              ICON=Bitmap.open("/IMAGE/ICONS/DRN.png")
     },
 
     HOME={
@@ -252,7 +263,7 @@ local function create(zone, options)
       HDG=0,
       ALT=0,
       DIST=0,
-      ICON=Bitmap.open("/IMAGE/MAPS/HOME.png")
+      ICON=Bitmap.open("/IMAGE/ICONS/HOME.png")
     }
   }
 
@@ -323,6 +334,16 @@ local function refresh(wgt)
    lcd.drawText(wgt.zone.x+350, wgt.zone.y+90, rnd(wgt.DRONE.ALT,2),wgt.GEN_PRINT_FLAG)
    lcd.drawText(wgt.zone.x+300, wgt.zone.y+110, "ZOM",0)
    lcd.drawNumber(wgt.zone.x+350, wgt.zone.y+110, rnd(wgt.ZOOM,2),wgt.GEN_PRINT_FLAG)
+
+   lcd.drawText(wgt.zone.x+300, wgt.zone.y+140, "TPCOOR",256)
+   lcd.drawNumber(wgt.zone.x+340, wgt.zone.y+140, rnd(wgt.DRONE.TPCoor.curr.X,4),wgt.GEN_PRINT_FLAG+256)
+   lcd.drawNumber(wgt.zone.x+370, wgt.zone.y+140, rnd(wgt.DRONE.TPCoor.curr.Y,4),wgt.GEN_PRINT_FLAG+256)
+   lcd.drawText(wgt.zone.x+300, wgt.zone.y+155, "TCOOR",256)
+   lcd.drawNumber(wgt.zone.x+340, wgt.zone.y+155, rnd(wgt.DRONE.TCoor.curr.X,4),wgt.GEN_PRINT_FLAG+256)
+   lcd.drawNumber(wgt.zone.x+370, wgt.zone.y+155, rnd(wgt.DRONE.TCoor.curr.Y,4),wgt.GEN_PRINT_FLAG+256)
+   lcd.drawText(wgt.zone.x+300, wgt.zone.y+170, "PCOOR",256)
+   lcd.drawNumber(wgt.zone.x+340, wgt.zone.y+170, rnd(wgt.DRONE.PCoor.curr.X,4),wgt.GEN_PRINT_FLAG+256)
+   lcd.drawNumber(wgt.zone.x+370, wgt.zone.y+170, rnd(wgt.DRONE.PCoor.curr.Y,4),wgt.GEN_PRINT_FLAG+256)
 
   -- lcd.drawText(wgt.zone.x+300, wgt.zone.y+130, "TCX",0)
   -- lcd.drawNumber(wgt.zone.x+350, wgt.zone.y+130, rnd(wgt.DRONE.TCoor.curr.X,2),0)
