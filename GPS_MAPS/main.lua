@@ -36,6 +36,152 @@ local _options = {
   --{ "dlSRC" , SOURCE , 0 },
   { "FMode" , SOURCE , 0 }
 }
+
+--##########################################################################
+--LOCAL FUNCTIONS
+--##########################################################################
+local function rnd(v,d)
+  if type(v)=="number" then
+    if d then
+     return math.floor((v*10^d)+0.5)/(10^d)
+    else
+     return math.floor(v+0.5)
+    end
+  else
+    return v
+  end
+ end
+local function NILV(val,ret)
+    if val==nil then
+      return ret
+    else 
+      return val
+    end
+ end
+local function file_found(file_name)
+  local f=io.open(file_name, "r")      
+  if f==nil then
+    return false
+  else
+    io.close(f)
+    return true
+  end
+
+
+ end
+local function latlon_tile(DR,wgt,map_ref)
+    if type(DR.GPS_COORDS.curr.lat)=="number" then
+      local siny=math.sin(math.rad(DR.GPS_COORDS.curr.lat))
+      local scale=math.pow(2,wgt.ZOOM)
+      local x_pixCoor=tile_size*(0.5+DR.GPS_COORDS.curr.lon/360)*scale
+      local y_pixCoor=tile_size*(0.5-math.log((1+siny)/(1-siny))/(4*math.pi))*scale
+      local x_tilePixelCoor=math.fmod( x_pixCoor,tile_size )
+      local y_tilePixelCoor=math.fmod( y_pixCoor,tile_size )
+      local x_tileCoor=x_pixCoor/tile_size
+      local y_tileCoor=y_pixCoor/tile_size
+      
+      if map_ref then
+        local tile_path="/IMAGES/MAPS/"..tostring(17-zoom).."_"..tostring(math.floor(x_tileCoor/1024,1)).."_"..tostring(math.floor(x_tileCoor-math.floor(x_tileCoor/1024,1)*1024)).."_"..tostring(math.floor(y_tileCoor/1024,1)).."_"..tostring(math.floor(y_tileCoor-math.floor(y_tileCoor/1024,1)*1024))..".png"
+        if not(file_found(tile_path)) then
+          tile_path=wgt.TILE.no_tile_path
+        end
+        wgt.TILE.curr_tile_path=tile_path
+      end
+        DR.TCoor.curr.X=x_tileCoor
+        DR.TCoor.curr.Y=y_tileCoor
+        DR.PCoor.curr.X=x_pixCoor
+        DR.PCoor.curr.Y=y_pixCoor
+        DR.TPCoor.curr.X=x_tilePixelCoor
+        DR.TPCoor.curr.Y=y_tilePixelCoor
+      --return tile_path,math.floor(x_tileCoor,1),math.floor(y_tileCoor,1),math.floor(x_pixCoor,1),math.floor(y_pixCoor,1),x_tilePixelCoor,y_tilePixelCoor
+    end
+ end
+
+local function get_DOWNLINK_STATUS(wgt)
+  --local val=getValue(dlSRC)
+   wgt.DOWNLINK_STATUS=NILV(getValue(dlSRC),0)
+   if  wgt.DOWNLINK_STATUS==0 then wgt.GEN_PRINT_FLAG=SHADOW else wgt.GEN_PRINT_FLAG=0 end
+ end
+
+local function update_var(wgt)
+  wgt.DRONE.GPS_COORDS.prev=wgt.DRONE.GPS_COORDS.curr
+  wgt.DRONE.TCoor.prev=wgt.DRONE.TCoor.curr
+  wgt.DRONE.PCoor.prev=wgt.DRONE.PCoor.curr
+  wgt.DRONE.TPCoor.prev=wgt.DRONE.TPCoor.curr
+  wgt.TILE.prev_tile_path=wgt.TILE.curr_tile_path
+ end
+local function get_telemetry(wgt)
+  --ZOOM
+  wgt.ZOOM=17-rnd(2*NILV(getValue(wgt.options.zoom),0)/1024)
+  --FM
+  local FM_raw=NILV(getValue(wgt.options.FMode),"NO DATA")
+    wgt.DRONE.FM=string.match(FM_raw,"%w*")
+  if NILV(string.find(FM_raw,0),0)>0 then 
+      wgt.DRONE.ARM="ARMED"
+      wgt.GEN_PRINT_FLAG=0
+    else 
+      wgt.DRONE.ARM="DISARMED"
+      wgt.GEN_PRINT_FLAG=SHADOW
+  end
+
+  --SATS
+  wgt.DRONE.SATS.COUNT=NILV(getValue(wgt.options.Sats),"NO DATA")
+  if wgt.DRONE.SATS.COUNT<5 then wgt.DRONE.SATS.SATS_PRINT_FLAG=BLNK else wgt.DRONE.SATS.SATS_PRINT_FLAG=0 end
+
+  --GPS
+  if type(getValue(wgt.options.GPS))==("table") then
+    wgt.DRONE.GPS_COORDS.curr = getValue(wgt.options.GPS)
+    wgt.DRONE.GPS_COORDS.GPS_PRINT_FLAG=0
+  else wgt.DRONE.GPS_COORDS.GPS_PRINT_FLAG=SHADOW
+  end
+  latlon_tile(wgt.DRONE,wgt,true)
+
+  --HDG
+  if wgt.DRONE.PCoor.curr~=wgt.DRONE.PCoor.prev then
+    wgt.DRONE.HDG=rnd(math.atan2((wgt.DRONE.PCoor.curr.Y-wgt.DRONE.PCoor.prev.Y)/(wgt.DRONE.PCoor.curr.X-wgt.DRONE.PCoor.prev.X)),3)
+  end
+
+  --ALT
+  wgt.DRONE.ALT=NILV(getValue(wgt.options.Alt),"NO DATA")
+
+  --HOME
+
+  return
+ end
+
+local function GPS_MAP_PLOT(wgt,x,y)
+  --if (type(wgt.DRONE.GPS_COORDS.curr) == "table") then
+    if (wgt.TILE.prev_tile_path~=wgt.TILE.curr_tile_path or wgt.init_flag==true) then
+      wgt.TILE.tile=Bitmap.open(wgt.TILE.curr_tile_path)
+      wgt.init_flag=false
+    end
+    --if(wgt.DRONE.PCoor.curr~=wgt.DRONE.PCoor.prev or wgt.init_flag==false) then
+      lcd.drawBitmap(wgt.TILE.tile,x,y)
+    --end
+  --end
+ end
+
+local function GPS_DRONE_PLOT(wgt,x,y)
+    --if (wgt.DRONE.PCoor.curr.X~=0) and ( wgt.DRONE.TPCoor.curr~=wgt.DRONE.TPCoor.prev) then
+    if (wgt.DRONE.PCoor.curr.X~=0) then
+      lcd.drawBitmap(wgt.DRONE.ICON,wgt.DRONE.TPCoor.curr.X+x,wgt.DRONE.TPCoor.curr.Y+y)
+    end
+ end
+
+local function GPS_HOME_PLOT(wgt,x,y)
+  --if (wgt.HOME.PCoor.curr.X~=0) and (wgt.HOME.TCoor.curr==wgt.DRONE.TCoor.curr) and ( wgt.HOME.TPCoor.curr~=wgt.HOME.TPCoor.prev) then
+  if (wgt.HOME.PCoor.curr.X~=0) and (wgt.HOME.TCoor.curr==wgt.DRONE.TCoor.curr)  then
+    lcd.drawBitmap(wgt.HOME.ICON,wgt.HOME.TPCoor.curr.X+x,wgt.HOM.TPCoor.curr.Y+y)
+  end
+ end
+
+--##########################################################################
+--MAIN SCRIPT
+--##########################################################################
+
+
+-- This function is run once at the creation of the widget
+
 local function create(zone, options)
   local wgt = {
     zone = zone,
@@ -141,152 +287,6 @@ local function create(zone, options)
 
   return wgt
 end
---##########################################################################
---LOCAL FUNCTIONS
---##########################################################################
-local function rnd(v,d)
-  if type(v)=="number" then
-    if d then
-     return math.floor((v*10^d)+0.5)/(10^d)
-    else
-     return math.floor(v+0.5)
-    end
-  else
-    return v
-  end
-end
-local function NILV(val,ret)
-    if val==nil then
-      return ret
-    else 
-      return val
-    end
- end
-local function file_found(file_name)
-  local f=io.open(file_name, "r")      
-  if f==nil then
-    return false
-  else
-    io.close(f)
-    return true
-  end
-
-
-end
-local function latlon_tile(DR,wgt,map_ref)
-    if type(DR.GPS_COORDS.curr.lat)=="number" then
-      local siny=math.sin(math.rad(DR.GPS_COORDS.curr.lat))
-      local scale=math.pow(2,wgt.ZOOM)
-      local x_pixCoor=tile_size*(0.5+DR.GPS_COORDS.curr.lon/360)*scale
-      local y_pixCoor=tile_size*(0.5-math.log((1+siny)/(1-siny))/(4*math.pi))*scale
-      local x_tilePixelCoor=math.fmod( x_pixCoor,tile_size )
-      local y_tilePixelCoor=math.fmod( y_pixCoor,tile_size )
-      local x_tileCoor=x_pixCoor/tile_size
-      local y_tileCoor=y_pixCoor/tile_size
-      
-      if map_ref then
-        local tile_path="/IMAGES/MAPS/"..tostring(17-zoom).."_"..tostring(math.floor(x_tileCoor/1024,1)).."_"..tostring(math.floor(x_tileCoor-math.floor(x_tileCoor/1024,1)*1024)).."_"..tostring(math.floor(y_tileCoor/1024,1)).."_"..tostring(math.floor(y_tileCoor-math.floor(y_tileCoor/1024,1)*1024))..".png"
-        if not(file_found(tile_path)) then
-          tile_path=wgt.TILE.no_tile_path
-        end
-        wgt.TILE.curr_tile_path=tile_path
-      end
-        DR.TCoor.curr.X=x_tileCoor
-        DR.TCoor.curr.Y=y_tileCoor
-        DR.PCoor.curr.X=x_pixCoor
-        DR.PCoor.curr.Y=y_pixCoor
-        DR.TPCoor.curr.X=x_tilePixelCoor
-        DR.TPCoor.curr.Y=y_tilePixelCoor
-      --return tile_path,math.floor(x_tileCoor,1),math.floor(y_tileCoor,1),math.floor(x_pixCoor,1),math.floor(y_pixCoor,1),x_tilePixelCoor,y_tilePixelCoor
-    end
-end
-
-local function get_DOWNLINK_STATUS(wgt)
-  --local val=getValue(dlSRC)
-   wgt.DOWNLINK_STATUS=NILV(getValue(dlSRC),0)
-   if  wgt.DOWNLINK_STATUS==0 then wgt.GEN_PRINT_FLAG=SHADOW else wgt.GEN_PRINT_FLAG=0 end
-end
-
-local function update_var(wgt)
-  wgt.DRONE.GPS_COORDS.prev=wgt.DRONE.GPS_COORDS.curr
-  wgt.DRONE.TCoor.prev=wgt.DRONE.TCoor.curr
-  wgt.DRONE.PCoor.prev=wgt.DRONE.PCoor.curr
-  wgt.DRONE.TPCoor.prev=wgt.DRONE.TPCoor.curr
-  wgt.TILE.prev_tile_path=wgt.TILE.curr_tile_path
-end
-local function get_telemetry(wgt)
-  --ZOOM
-  wgt.ZOOM=17-rnd(2*NILV(getValue(wgt.options.zoom),0)/1024)
-  --FM
-  local FM_raw=NILV(getValue(wgt.options.FMode),"NO DATA")
-    wgt.DRONE.FM=string.match(FM_raw,"%w*")
-  if NILV(string.find(FM_raw,0),0)>0 then 
-      wgt.DRONE.ARM="ARMED"
-      wgt.GEN_PRINT_FLAG=0
-    else 
-      wgt.DRONE.ARM="DISARMED"
-      wgt.GEN_PRINT_FLAG=SHADOW
-  end
-
-  --SATS
-  wgt.DRONE.SATS.COUNT=NILV(getValue(wgt.options.Sats),"NO DATA")
-  if wgt.DRONE.SATS.COUNT<5 then wgt.DRONE.SATS.SATS_PRINT_FLAG=BLNK else wgt.DRONE.SATS.SATS_PRINT_FLAG=0 end
-
-  --GPS
-  if type(getValue(wgt.options.GPS))==("table") then
-    wgt.DRONE.GPS_COORDS.curr = getValue(wgt.options.GPS)
-    wgt.DRONE.GPS_COORDS.GPS_PRINT_FLAG=0
-  else wgt.DRONE.GPS_COORDS.GPS_PRINT_FLAG=SHADOW
-  end
-  latlon_tile(wgt.DRONE,wgt,true)
-
-  --HDG
-  if wgt.DRONE.PCoor.curr~=wgt.DRONE.PCoor.prev then
-    wgt.DRONE.HDG=rnd(math.atan2((wgt.DRONE.PCoor.curr.Y-wgt.DRONE.PCoor.prev.Y)/(wgt.DRONE.PCoor.curr.X-wgt.DRONE.PCoor.prev.X)),3)
-  end
-
-  --ALT
-  wgt.DRONE.ALT=NILV(getValue(wgt.options.Alt),"NO DATA")
-
-  --HOME
-
-  return
-end
-
-local function GPS_MAP_PLOT(wgt,x,y)
-  --if (type(wgt.DRONE.GPS_COORDS.curr) == "table") then
-    if (wgt.TILE.prev_tile_path~=wgt.TILE.curr_tile_path or wgt.init_flag==true) then
-      wgt.TILE.tile=Bitmap.open(wgt.TILE.curr_tile_path)
-      wgt.init_flag=false
-    end
-    --if(wgt.DRONE.PCoor.curr~=wgt.DRONE.PCoor.prev or wgt.init_flag==false) then
-      lcd.drawBitmap(wgt.TILE.tile,1,1)
-    --end
-  --end
-end
-
-local function GPS_DRONE_PLOT(wgt)
-    --if (wgt.DRONE.PCoor.curr.X~=0) and ( wgt.DRONE.TPCoor.curr~=wgt.DRONE.TPCoor.prev) then
-    if (wgt.DRONE.PCoor.curr.X~=0) then
-      lcd.drawBitmap(wgt.DRONE.ICON,wgt.DRONE.TPCoor.curr.X,wgt.DRONE.TPCoor.curr.Y)
-    end
-end
-
-local function GPS_HOME_PLOT(wgt)
-  --if (wgt.HOME.PCoor.curr.X~=0) and (wgt.HOME.TCoor.curr==wgt.DRONE.TCoor.curr) and ( wgt.HOME.TPCoor.curr~=wgt.HOME.TPCoor.prev) then
-  if (wgt.HOME.PCoor.curr.X~=0) and (wgt.HOME.TCoor.curr==wgt.DRONE.TCoor.curr)  then
-    lcd.drawBitmap(wgt.HOME.ICON,wgt.HOME.TPCoor.curr.X,wgt.HOM.TPCoor.curr.Y)
-  end
-end
-
---##########################################################################
---MAIN SCRIPT
---##########################################################################
-
-
--- This function is run once at the creation of the widget
-
-
 -- This function allow updates when you change widgets settings
 local function update(wgt, options)
   wgt.options=options
@@ -306,16 +306,11 @@ local function refresh(wgt)
   get_DOWNLINK_STATUS(wgt)
   update_var(wgt)
   get_telemetry(wgt)
-  GPS_MAP_PLOT(wgt,wgt.zone.x,wgt.zone.y)
-  
- -- GPS_MAP_PLOT(wgt,wgt.zone.w-wgt.TILE.TILE_SIZE,wgt.zone.y)
-  --GPS MAP SECTION
+  GPS_MAP_PLOT(wgt,1,1)
+  GPS_DRONE_PLOT(wgt,1,1)
+  GPS_HOME_PLOT(wgt,1,1)
 
 
-  --SHADOWED 128
-  --BLINK 1
-  --INVERS 2
-  --GREY prints in vertical big size
    lcd.drawText(wgt.zone.x+300, wgt.zone.y, "SAT",0+SMLSIZE)
    lcd.drawText(wgt.zone.x+350, wgt.zone.y+10, wgt.DRONE.SATS.COUNT,wgt.DRONE.SATS.SATS_PRINT_FLAG)
    lcd.drawText(wgt.zone.x+300, wgt.zone.y+30, "LAT",0)
