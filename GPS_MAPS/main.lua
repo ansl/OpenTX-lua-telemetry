@@ -1,6 +1,6 @@
 ---- #########################################################################
 ---- #                                                                       #
----- # Telemetry Widget script for FrSky Horus                               #
+---- # Telemetry Widget script for TX16S with TBS Crossfire                  #
 ---- # Copyright (C) OpenTX                                                  #
 -----#                                                                       #
 ---- # License GPLv2: http://www.gnu.org/licenses/gpl-2.0.html               #
@@ -16,10 +16,9 @@
 ---- #                                                                       #
 ---- #########################################################################
 
--- Horus Widget to display the levels of lipo battery with per cell indication
--- 3djc & Offer Shmuely
+
 -- Date: 2020
--- ver: 0.5
+-- ver: 0.1
 local version = "v0.1"
 local tile_size=256
 local SHADOW=1048576
