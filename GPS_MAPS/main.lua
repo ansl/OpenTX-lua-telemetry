@@ -47,7 +47,8 @@ local function create(zone, options)
         TILE_SIZE=tile_size,
         curr_tile_path="/IMAGES/MAPS/WW.png",
         prev_tile_path=0,
-        tile=0
+        tile=0,
+        no_tile_path="/IMAGES/MAPS/NO_TILE.png"
     },
     DOWNLINK_STATUS=0,
     GEN_PRINT_FLAG=SHADOW,
@@ -77,7 +78,36 @@ local function create(zone, options)
                 prev={X=0,Y=0}
               },
               HDG=0,
-              ALT=0
+              ALT=0,
+              ICON=Bitmap.open("/IMAGE/MAPS/DRN.png")
+    },
+
+    HOME={
+      SATS={
+        COUNT=0,
+        SATS_PRINT_FLAG="BLINK"
+      },
+      GPS_COORDS={
+        curr={lat="NO DATA",lon="NO DATA"},
+        prev={lat="NO DATA",lon="NO DATA"},
+        GPS_PRINT_FLAG=BLNK+SHADOW
+      },
+      PCoor={
+        curr={X=0,Y=0},
+        prev={X=0,Y=0}
+      },
+      TCoor={
+        curr={X=0,Y=0},
+        prev={X=0,Y=0}
+      },
+      TPCoor={
+        curr={X=0,Y=0},
+        prev={X=0,Y=0}
+      },
+      HDG=0,
+      ALT=0,
+      DIST=0,
+      ICON=Bitmap.open("/IMAGE/MAPS/HOME.png")
     }
   }
 
@@ -133,37 +163,42 @@ local function NILV(val,ret)
       return val
     end
  end
+local function file_found(file_name)
+  local f=io.open(file_name, "r")      
+  if f==nil then
+    return false
+  else
+    io.close(f)
+    return true
+  end
 
-local function latlon_tile(DR,wgt)
+
+end
+local function latlon_tile(DR,wgt,map_ref)
     if type(DR.GPS_COORDS.curr.lat)=="number" then
-      local siny=math.sin(math.rad(lat))
-      local scale=math.pow(2,zoom)
-      local x_pixCoor=tile_size*(0.5+lon/360)*scale
+      local siny=math.sin(math.rad(DR.GPS_COORDS.curr.lat))
+      local scale=math.pow(2,wgt.ZOOM)
+      local x_pixCoor=tile_size*(0.5+DR.GPS_COORDS.curr.lon/360)*scale
       local y_pixCoor=tile_size*(0.5-math.log((1+siny)/(1-siny))/(4*math.pi))*scale
       local x_tilePixelCoor=math.fmod( x_pixCoor,tile_size )
       local y_tilePixelCoor=math.fmod( y_pixCoor,tile_size )
       local x_tileCoor=x_pixCoor/tile_size
       local y_tileCoor=y_pixCoor/tile_size
-
-      local tile_path="/IMAGES/MAPS/"..tostring(17-zoom).."_"..tostring(math.floor(x_tileCoor/1024,1)).."_"..tostring(math.floor(x_tileCoor-math.floor(x_tileCoor/1024,1)*1024)).."_"..tostring(math.floor(y_tileCoor/1024,1)).."_"..tostring(math.floor(y_tileCoor-math.floor(y_tileCoor/1024,1)*1024))..".png"
-      local W,H
-      local bitmap_exist
-      if (wgt.TILE.prev_tile_path~=wgt.TILE.curr_tile_path or wgt.init_flag==true) then
-        bitmap_exist=Bitmap.open(tile_path)
-        W,H=Bitmap.getSize(bitmap_exist)
-        wgt.init_flag=false
-      end
-
-      if H>0 then
-        wgt.TILE.tile=bitmap_exist
+      
+      if map_ref then
+        local tile_path="/IMAGES/MAPS/"..tostring(17-zoom).."_"..tostring(math.floor(x_tileCoor/1024,1)).."_"..tostring(math.floor(x_tileCoor-math.floor(x_tileCoor/1024,1)*1024)).."_"..tostring(math.floor(y_tileCoor/1024,1)).."_"..tostring(math.floor(y_tileCoor-math.floor(y_tileCoor/1024,1)*1024))..".png"
+        if not(file_found(tile_path)) then
+          tile_path=wgt.TILE.no_tile_path
+        end
         wgt.TILE.curr_tile_path=tile_path
       end
-
-    --end
-
+        DR.TCoor.curr.X=x_tileCoor
+        DR.TCoor.curr.Y=y_tileCoor
+        DR.PCoor.curr.X=x_pixCoor
+        DR.PCoor.curr.Y=y_pixCoor
+        DR.TPCoor.curr.X=x_tilePixelCoor
+        DR.TPCoor.curr.Y=y_tilePixelCoor
       --return tile_path,math.floor(x_tileCoor,1),math.floor(y_tileCoor,1),math.floor(x_pixCoor,1),math.floor(y_pixCoor,1),x_tilePixelCoor,y_tilePixelCoor
-    else 
-      return "/IMAGES/MAPS/WW.png",0,0,0,0,0,0
     end
 end
 
@@ -181,7 +216,8 @@ local function update_var(wgt)
   wgt.TILE.prev_tile_path=wgt.TILE.curr_tile_path
 end
 local function get_telemetry(wgt)
-
+  --ZOOM
+  wgt.ZOOM=17-rnd(2*NILV(getValue(wgt.options.zoom),0)/1024)
   --FM
   local FM_raw=NILV(getValue(wgt.options.FMode),"NO DATA")
     wgt.DRONE.FM=string.match(FM_raw,"%w*")
@@ -203,7 +239,9 @@ local function get_telemetry(wgt)
     wgt.DRONE.GPS_COORDS.GPS_PRINT_FLAG=0
   else wgt.DRONE.GPS_COORDS.GPS_PRINT_FLAG=SHADOW
   end
-  wgt.TILE.curr_tile_path,wgt.DRONE.TCoor.curr.X,wgt.DRONE.TCoor.curr.Y,wgt.DRONE.PCoor.curr.X,wgt.DRONE.PCoor.curr.Y,wgt.DRONE.TPCoor.curr.X,wgt.DRONE.TPCoor.curr.Y=latlon_tile(wgt.DRONE.GPS_COORDS.curr.lat,wgt.DRONE.GPS_COORDS.curr.lon,wgt.ZOOM,wgt.TILE.TILE_SIZE)
+  latlon_tile(wgt.DRONE,wgt,true)
+
+  --HDG
   if wgt.DRONE.PCoor.curr~=wgt.DRONE.PCoor.prev then
     wgt.DRONE.HDG=rnd(math.atan2((wgt.DRONE.PCoor.curr.Y-wgt.DRONE.PCoor.prev.Y)/(wgt.DRONE.PCoor.curr.X-wgt.DRONE.PCoor.prev.X)),3)
   end
@@ -211,27 +249,35 @@ local function get_telemetry(wgt)
   --ALT
   wgt.DRONE.ALT=NILV(getValue(wgt.options.Alt),"NO DATA")
 
-  --TILE
-  wgt.ZOOM=17-rnd(2*NILV(getValue(wgt.options.zoom),0)/1024)
+  --HOME
+
   return
 end
 
 local function GPS_MAP_PLOT(wgt,x,y)
   --if (type(wgt.DRONE.GPS_COORDS.curr) == "table") then
     if (wgt.TILE.prev_tile_path~=wgt.TILE.curr_tile_path or wgt.init_flag==true) then
-      local bitmap_exist=Bitmap.open(wgt.TILE.curr_tile_path)
-      local W,H=Bitmap.getSize(bitmap_exist)
-      if H>0 then
-        wgt.TILE.tile=bitmap_exist
-      end
-      
+      wgt.TILE.tile=Bitmap.open(wgt.TILE.curr_tile_path)
       wgt.init_flag=false
     end
     --if(wgt.DRONE.PCoor.curr~=wgt.DRONE.PCoor.prev or wgt.init_flag==false) then
       lcd.drawBitmap(wgt.TILE.tile,1,1)
     --end
   --end
+end
 
+local function GPS_DRONE_PLOT(wgt)
+    --if (wgt.DRONE.PCoor.curr.X~=0) and ( wgt.DRONE.TPCoor.curr~=wgt.DRONE.TPCoor.prev) then
+    if (wgt.DRONE.PCoor.curr.X~=0) then
+      lcd.drawBitmap(wgt.DRONE.ICON,wgt.DRONE.TPCoor.curr.X,wgt.DRONE.TPCoor.curr.Y)
+    end
+end
+
+local function GPS_HOME_PLOT(wgt)
+  --if (wgt.HOME.PCoor.curr.X~=0) and (wgt.HOME.TCoor.curr==wgt.DRONE.TCoor.curr) and ( wgt.HOME.TPCoor.curr~=wgt.HOME.TPCoor.prev) then
+  if (wgt.HOME.PCoor.curr.X~=0) and (wgt.HOME.TCoor.curr==wgt.DRONE.TCoor.curr)  then
+    lcd.drawBitmap(wgt.HOME.ICON,wgt.HOME.TPCoor.curr.X,wgt.HOM.TPCoor.curr.Y)
+  end
 end
 
 --##########################################################################
