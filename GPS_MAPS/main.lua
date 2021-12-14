@@ -138,7 +138,7 @@ local function get_telemetry(wgt)
   if NILV(string.find(FM_raw,"*"),0)==0 and FM_raw~=0 then 
       wgt.DRONE.ARM="ARMED"
       wgt.GEN_PRINT_FLAG=0
-    else 
+    else
       wgt.DRONE.ARM="DISARMED"
       wgt.GEN_PRINT_FLAG=SHADOW
   end
@@ -183,6 +183,7 @@ local function GPS_MAP_PLOT(wgt,x,y)
 
 local function dron_sktch(x,y,s)
 lcd.drawLine()
+
 end
 
 local function GPS_DRONE_PLOT(wgt,x,y)

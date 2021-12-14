@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 
 #img = Image.open("C:/Users/luengoa/Downloads/windsock.png")
-img = Image.open("drone 24.png").rotate(0)
+img = Image.open("navegante.png").rotate(0)
 bit = np.asarray(img)
 print (bit[:,:,0])
 
